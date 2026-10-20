@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Venom</title>
+<style>
+:root{--bg:#0e0e14;--card:#1a1a24;--txt:#f1f1f5;--acc:#7c3aed;--mut:#8b8b9a}
+@media(prefers-color-scheme:light){:root{--bg:#f5f5f8;--card:#fff;--txt:#14141c;--mut:#6b6b7a}}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--txt);height:100dvh;display:flex;flex-direction:column}
+header{padding:10px 14px;display:flex;gap:8px;align-items:center}
+select,input,button,textarea{font:inherit;color:var(--txt);background:var(--card);border:1px solid #3333;border-radius:10px;padding:9px}
+button{background:var(--acc);color:#fff;border:0;cursor:pointer}
+nav{display:flex;gap:6px;padding:0 14px 8px}nav button{background:var(--card);color:var(--txt);flex:1}nav button.on{background:var(--acc);color:#fff}
+main{flex:1;overflow:auto;padding:0 14px}
+.msg{max-width:85%;padding:9px 12px;border-radius:14px;margin:6px 0;background:var(--card);white-space:pre-wrap}
+.me{margin-left:auto;background:var(--acc);color:#fff}
+.row{display:flex;gap:6px;padding:10px 14px}.row input{flex:1}
+.card{background:var(--card);padding:10px;border-radius:12px;margin:8px 0}
+.hide{display:none}#emo{position:fixed;right:12px;bottom:80px;font-size:34px;cursor:pointer;transition:transform .3s;user-select:none}
+.fl{position:fixed;font-size:22px;pointer-events:none;animation:up 1.6s forwards}@keyframes up{to{transform:translateY(-120px);opacity:0}}
+label{font-size:13px;color:var(--mut)}
+</style></head><body>
+<header><b>⚡ Venom</b><select id="who" style="flex:1"></select><button id="newc">+ Character</button></header>
+<nav><button data-t="chat" class="on">💬 Chat</button><button data-t="time">🗓️ Timetable</button><button data-t="dev">📱 Devices</button></nav>
+<main>
+<section id="chat"><div id="log"></div></section>
+<section id="time" class="hide">
+ <div class="card"><label>Task</label><input id="tt" style="width:100%"><label>Time</label><input id="tm" type="time" style="width:100%;margin-bottom:8px"><button id="add">Add</button> <button id="ask">🤖 Ask character to plan my day</button></div>
+ <div id="tl"></div></section>
+<section id="dev" class="hide">
+ <div class="card"><b>Smart devices</b><p style="color:var(--mut)">Add your devices (lamp, speaker, watch). The character knows them and can suggest routines. Direct control needs each brand's free API—ask Venom to help set one up.</p>
+ <input id="dn" placeholder="e.g. Bedroom lamp"><button id="da">Add</button></div><div id="dl"></div></section>
+</main>
+<div class="row" id="inrow"><input id="msg" placeholder="Talk to me…"><button id="send">Send</button></div>
+<div id="emo">😊</div>
+<script>
+const $=id=>document.getElementById(id);
+const L=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
+const S=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+let chars=L("chars",[
+ {n:"Venom",p:"You are Venom, a loyal, witty Marvel-style friend. You are always chatting warmly, keep the user on schedule like a steady time instructor, give ideas and motivation. Use small emoji."},
+ {n:"Spider-Man",p:"You are a cheerful, joking Spider-Man style friend who motivates the user and helps with plans. Use small emoji."}]);
+let tasks=L("tasks",[]),devs=L("devs",[]),hist=L("hist",{});
+function fill(){$("who").innerHTML=chars.map((c,i)=>`<option value="${i}">${c.n}</option>`).join("")}fill();
+const cur=()=>chars[$("who").value||0];
+function sys(){return cur().p+" Always reply short and friendly with 1-2 small emoji. User's timetable: "+JSON.stringify(tasks)+". User's smart devices: "+JSON.stringify(devs)+". Remember you work with the user forever."}
+function render(){const h=hist[cur().n]||[];$("log").innerHTML="";h.forEach(m=>{const d=document.createElement("div");d.className="msg "+(m.role=="user"?"me":"");d.textContent=m.text;$("log").appendChild(d)});$("chat").parentElement.scrollTop=1e9}
+async function send(text){
+ const k=cur().n;hist[k]=hist[k]||[];hist[k].push({role:"user",text});S("hist",hist);render();
+ $("emo").textContent="🤔";
+ try{const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:sys(),messages:hist[k].slice(-20)})});
+ const d=await r.json();hist[k].push({role:"model",text:d.text})}catch(e){hist[k].push({role:"model",text:"Offline 😕"})}
+ S("hist",hist);render();$("emo").textContent="😄";float()}
+function float(){const e=document.createElement("div");e.className="fl";e.textContent=["✨","💜","🔥","👍","🕷️"][Math.random()*5|0];e.style.right=(20+Math.random()*60)+"px";e.style.bottom="120px";document.body.appendChild(e);setTimeout(()=>e.remove(),1600)}
+$("send").onclick=()=>{const t=$("msg").value.trim();if(t){$("msg").value="";send(t)}};
+$("msg").onkeydown=e=>{if(e.key=="Enter")$("send").click()};
+$("who").onchange=render;
+$("newc").onclick=()=>{const n=prompt("Character name?");if(!n)return;const p=prompt("Personality? (e.g. calm, funny, strict coach)")||"friendly";chars.push({n,p:`You are ${n}, a fictional character: ${p}. You are the user's friend, helping with timetable, ideas and motivation.`});S("chars",chars);fill();$("who").value=chars.length-1;render()};
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));b.classList.add("on");["chat","time","dev"].forEach(s=>$(s).classList.toggle("hide",s!=b.dataset.t));$("inrow").classList.toggle("hide",b.dataset.t!="chat")});
+function rt(){tasks.sort((a,b)=>a.t.localeCompare(b.t));$("tl").innerHTML=tasks.map((x,i)=>`<div class="card">${x.t} — ${x.n} <button onclick="tasks.splice(${i},1);S('tasks',tasks);rt()" style="float:right">✕</button></div>`).join("");S("tasks",tasks)}
+$("add").onclick=()=>{if($("tt").value&&$("tm").value){tasks.push({n:$("tt").value,t:$("tm").value});$("tt").value="";rt()}};
+$("ask").onclick=()=>{document.querySelector('[data-t=chat]').click();send("Please plan my day as a timetable and keep me on schedule.")};
+function rd(){$("dl").innerHTML=devs.map((x,i)=>`<div class="card">📱 ${x} <button onclick="devs.splice(${i},1);S('devs',devs);rd()" style="float:right">✕</button></div>`).join("");S("devs",devs)}
+$("da").onclick=()=>{if($("dn").value){devs.push($("dn").value);$("dn").value="";rd()}};
+$("emo").onclick=()=>{$("emo").textContent=["😊","😎","🥳","💜","🤩"][Math.random()*5|0];float()};
+setInterval(()=>{$("emo").style.transform="scale("+(1+Math.random()*.25)+") rotate("+(Math.random()*16-8)+"deg)"},1500);
+rt();rd();render();
+</script></body></html>
